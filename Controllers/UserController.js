@@ -43,6 +43,15 @@ const loginUser = async (req, res) => {
   }
 };
 
+// Logout User (Client should clear the token)
+const logoutUser = async (req, res) => {
+  try {
+    res.json({ message: "Logout successful" });
+  } catch (error) {
+    res.status(500).json({ message: "Server Error", error: error.message });
+  }
+};
+
 // Get All Users
 const getAllUsers = async (req, res) => {
   try {
@@ -65,4 +74,45 @@ const getUser = async (req, res) => {
   }
 };
 
-module.exports = { registerUser, loginUser, getAllUsers, getUser };
+// Update User
+const updateUser = async (req, res) => {
+  try {
+    const { name, email } = req.body;
+
+    const updatedUser = await User.findByIdAndUpdate(
+      req.params.id,
+      { name, email },
+      { new: true, runValidators: true }
+    ).select("-password");
+
+    if (!updatedUser)
+      return res.status(404).json({ message: "User not found" });
+
+    res.json({ message: "User updated successfully", user: updatedUser });
+  } catch (error) {
+    res.status(500).json({ message: "Server Error", error: error.message });
+  }
+};
+
+// Delete User
+const deleteUser = async (req, res) => {
+  try {
+    const user = await User.findByIdAndDelete(req.params.id);
+
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    res.json({ message: "User deleted successfully" });
+  } catch (error) {
+    res.status(500).json({ message: "Server Error", error: error.message });
+  }
+};
+
+module.exports = {
+  registerUser,
+  loginUser,
+  logoutUser,
+  getAllUsers,
+  getUser,
+  updateUser,
+  deleteUser,
+};
