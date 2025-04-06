@@ -4,17 +4,21 @@ const mongoose = require("mongoose");
 const cors = require("cors");
 const morgan = require("morgan");
 const userRoutes = require("./Routes/UserRoute");
+const lecturerRoutes = require("./Routes/LecturerRoute");
+const CourseRoutes = require("./Routes/CourseRoute");
 
 const app = express();
 app.use(express.json());
 app.use(cors());
-app.use(morgan("dev")) ;
+app.use(morgan("dev"));
 
 app.use("/users", userRoutes);
+app.use("/lecturers", lecturerRoutes);
+app.use("/courses", CourseRoutes);
 
 // MongoDB Connection
 mongoose
-  .connect(process.env.MONGO_URI,)
+  .connect(process.env.MONGO_URI)
   .then(() => console.log("MongoDB Connected"))
   .catch((err) => console.error("DB Connection Error:", err));
 

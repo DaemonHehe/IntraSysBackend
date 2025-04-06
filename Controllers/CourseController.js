@@ -1,25 +1,23 @@
 const Course = require("../Models/Course");
-const Lecturer = require("../models/LecturerModel");
+const Lecturer = require("../Models/Lecturer");
+const mongoose = require("mongoose");
 
 // 📌 1️⃣ Create a New Course
 const registerCourse = async (req, res) => {
   try {
-    const { name, description, lecturer, category, price, duration, level } =
-      req.body;
+    const { name, description, lecturer, category, duration } = req.body;
 
-    const lecturerExists = await Lecturer.findById(lecturer);
-    if (!lecturerExists) {
-      return res.status(404).json({ error: "Lecturer not found" });
+    const lecturerDoc = await Lecturer.findOne({ name: lecturer });
+    if (!lecturerDoc) {
+      return res.status(404).json({ error: "Lecturer not found by name" });
     }
 
     const newCourse = new Course({
       name,
       description,
-      lecturer,
+      lecturer: lecturerDoc._id,
       category,
-      price,
       duration,
-      level,
     });
 
     await newCourse.save();
@@ -59,8 +57,7 @@ const getCourseById = async (req, res) => {
 // 📌 4️⃣ Update a Course
 const updateCourse = async (req, res) => {
   try {
-    const { name, description, lecturer, category, price, duration, level } =
-      req.body;
+    let { name, description, lecturer, category, duration } = req.body;
 
     // Check if another course already has this name
     const existingCourse = await Course.findOne({ name });
@@ -68,9 +65,17 @@ const updateCourse = async (req, res) => {
       return res.status(400).json({ error: "Course name must be unique" });
     }
 
+    if (lecturer && !mongoose.Types.ObjectId.isValid(lecturer)) {
+      const lecturerDoc = await Lecturer.findOne({ name: lecturer });
+      if (!lecturerDoc) {
+        return res.status(404).json({ error: "Lecturer not found by name" });
+      }
+      lecturer = lecturerDoc._id;
+    }
+
     const updatedCourse = await Course.findByIdAndUpdate(
       req.params.id,
-      { name, description, lecturer, category, price, duration, level },
+      { name, description, lecturer, category, duration },
       { new: true, runValidators: true }
     );
 

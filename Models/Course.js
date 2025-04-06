@@ -20,16 +20,13 @@ const CourseSchema = new mongoose.Schema({
     type: String,
     required: [true, "Category is required"],
   },
-  price: {
-    type: Number,
-    required: [true, "Price is required"],
-  },
   duration: {
     type: Number,
     required: true,
   },
   enrollmentLimit: {
     type: Number,
+    default: 30,
   },
   enrolledStudents: [
     {

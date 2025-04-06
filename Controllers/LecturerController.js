@@ -25,7 +25,7 @@ const registerLecturer = async (req, res) => {
 
     res.status(201).json({
       message: "Lecturer registered successfully",
-      token: generateToken(user),
+      token: generateToken(lecturer),
     });
   } catch (error) {
     res.status(500).json({ message: "Server Error", error: error.message });
@@ -48,7 +48,7 @@ const loginLecturer = async (req, res) => {
   }
 };
 
-// Logout User (Client should clear the token)
+// Logout Lecturer (Client should clear the token)
 const logoutLecturer = async (req, res) => {
   try {
     res.json({ message: "Logout successful" });
@@ -57,7 +57,7 @@ const logoutLecturer = async (req, res) => {
   }
 };
 
-// Get All Users
+// Get All Lecturers
 const getAllLecturers = async (req, res) => {
   try {
     const lecturers = await Lecturer.find().select("-password"); // Exclude password
@@ -67,20 +67,20 @@ const getAllLecturers = async (req, res) => {
   }
 };
 
-// Get a Single User by ID
+// Get a Single Lecturer by ID
 const getLecturer = async (req, res) => {
   try {
     const lecturer = await Lecturer.findById(req.params.id).select("-password"); // Exclude password
     if (!lecturer)
       return res.status(404).json({ message: "Lecturer not found" });
 
-    res.json(user);
+    res.json(lecturer);
   } catch (error) {
     res.status(500).json({ message: "Server Error", error: error.message });
   }
 };
 
-// Update User
+// Update Lecturer
 const updateLecturer = async (req, res) => {
   try {
     const { name, email } = req.body;
@@ -103,7 +103,7 @@ const updateLecturer = async (req, res) => {
   }
 };
 
-// Delete User
+// Delete Lecturer
 const deleteLecturer = async (req, res) => {
   try {
     const lecturer = await Lecturer.findByIdAndDelete(req.params.id);
