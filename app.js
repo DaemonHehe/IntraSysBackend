@@ -6,6 +6,7 @@ const morgan = require("morgan");
 const userRoutes = require("./Routes/UserRoute");
 const lecturerRoutes = require("./Routes/LecturerRoute");
 const CourseRoutes = require("./Routes/CourseRoute");
+const GraddeRoutes = require("./Routes/GradeRoute");
 
 const app = express();
 app.use(express.json());
@@ -15,6 +16,7 @@ app.use(morgan("dev"));
 app.use("/users", userRoutes);
 app.use("/lecturers", lecturerRoutes);
 app.use("/courses", CourseRoutes);
+app.use("/grades", GraddeRoutes);
 
 // MongoDB Connection
 mongoose

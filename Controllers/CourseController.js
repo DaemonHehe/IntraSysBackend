@@ -2,7 +2,7 @@ const Course = require("../Models/Course");
 const Lecturer = require("../Models/Lecturer");
 const mongoose = require("mongoose");
 
-// 📌 1️⃣ Create a New Course
+// 📌  Create a New Course
 const registerCourse = async (req, res) => {
   try {
     const { name, description, lecturer, category, duration } = req.body;
@@ -29,7 +29,7 @@ const registerCourse = async (req, res) => {
   }
 };
 
-// 📌 2️⃣ Get All Courses
+// 📌  Get All Courses
 const getAllCourses = async (req, res) => {
   try {
     const courses = await Course.find().populate("lecturer", "name email");
@@ -39,7 +39,7 @@ const getAllCourses = async (req, res) => {
   }
 };
 
-// 📌 3️⃣ Get a Single Course by ID
+// 📌  Get a Single Course by ID
 const getCourseById = async (req, res) => {
   try {
     const course = await Course.findById(req.params.id).populate(
@@ -54,7 +54,7 @@ const getCourseById = async (req, res) => {
   }
 };
 
-// 📌 4️⃣ Update a Course
+// 📌  Update a Course
 const updateCourse = async (req, res) => {
   try {
     let { name, description, lecturer, category, duration } = req.body;
@@ -90,7 +90,7 @@ const updateCourse = async (req, res) => {
   }
 };
 
-// 📌 5️⃣ Delete a Course
+// 📌  Delete a Course
 const deleteCourse = async (req, res) => {
   try {
     const deletedCourse = await Course.findByIdAndDelete(req.params.id);
@@ -103,10 +103,43 @@ const deleteCourse = async (req, res) => {
   }
 };
 
+// 📌 Search Courses
+const searchCourses = async (req, res) => {
+  console.log(req.query);
+  try {
+    const { query } = req.query; // Get search query from the request
+
+    if (!query) {
+      return res.status(400).json({ error: "Search query is required" });
+    }
+
+    // Create a regular expression to perform a case-insensitive search
+    const regexQuery = new RegExp(query, "i"); // 'i' makes it case-insensitive
+
+    const courses = await Course.find({
+      $or: [
+        { name: { $regex: regexQuery } },
+        { description: { $regex: regexQuery } },
+        { category: { $regex: regexQuery } },
+        { "lecturer.name": { $regex: regexQuery } }, // Search in lecturer's name
+      ],
+    }).populate("lecturer", "name email");
+
+    if (courses.length === 0) {
+      return res.status(404).json({ message: "No courses found" });
+    }
+
+    res.status(200).json(courses);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 module.exports = {
   registerCourse,
   getAllCourses,
   getCourseById,
   updateCourse,
   deleteCourse,
+  searchCourses,
 };

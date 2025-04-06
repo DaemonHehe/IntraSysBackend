@@ -1,11 +1,11 @@
-const Grade = require("../models/GradeModel");
-const Course = require("../models/CourseModel");
-const User = require("../models/UserModel");
+const Grade = require("../Models/Grade");
+const Course = require("../Models/Course");
+const User = require("../Models/User");
 
 // 📌 1️⃣ Create a New Grade
-const registerGrade = async (req, res) => {
+const assignGrade = async (req, res) => {
   try {
-    const { student, course, grade, remarks } = req.body;
+    const { student, course, status, remarks } = req.body;
 
     // Ensure the student and course exist
     const studentExists = await User.findById(student);
@@ -24,8 +24,11 @@ const registerGrade = async (req, res) => {
       });
 
     // Create the grade
-    const newGrade = new Grade({ student, course, grade, remarks });
+    const newGrade = new Grade({ student, course, status, remarks });
     await newGrade.save();
+
+    studentExists.grades.push(newGrade._id);
+    await studentExists.save();
 
     res
       .status(201)
@@ -85,6 +88,36 @@ const updateGrade = async (req, res) => {
   }
 };
 
+// Get all grades for a specific student
+const getStudentGrades = async (req, res) => {
+  try {
+    const { studentId } = req.params;
+    const grades = await Grade.find({ student: studentId }).populate(
+      "course",
+      "title status"
+    );
+
+    res.json(grades);
+  } catch (error) {
+    res.status(500).json({ message: "Server Error", error: error.message });
+  }
+};
+
+// Get all grades for a specific course
+const getCourseGrades = async (req, res) => {
+  try {
+    const { courseId } = req.params;
+
+    const grades = await Grade.find({ course: courseId })
+      .populate("student", "name email")
+      .populate("course", "title");
+
+    res.json(grades);
+  } catch (error) {
+    res.status(500).json({ message: "Server Error", error: error.message });
+  }
+};
+
 // 📌 5️⃣ Delete a Grade
 const deleteGrade = async (req, res) => {
   try {
@@ -99,9 +132,11 @@ const deleteGrade = async (req, res) => {
 };
 
 module.exports = {
-  registerGrade,
+  assignGrade,
   getAllGrades,
   getGradeById,
   updateGrade,
+  getStudentGrades,
+  getCourseGrades,
   deleteGrade,
 };

@@ -55,7 +55,7 @@ const logoutUser = async (req, res) => {
 // Get All Users
 const getAllUsers = async (req, res) => {
   try {
-    const users = await User.find().select("-password"); // Exclude password
+    const users = await User.find().select("-password").populate("grades"); // Exclude password
     res.json(users);
   } catch (error) {
     res.status(500).json({ message: "Server Error", error: error.message });
@@ -65,7 +65,9 @@ const getAllUsers = async (req, res) => {
 // Get a Single User by ID
 const getUser = async (req, res) => {
   try {
-    const user = await User.findById(req.params.id).select("-password"); // Exclude password
+    const user = await User.findById(req.params.id)
+      .select("-password")
+      .populate("grades"); // Exclude password
     if (!user) return res.status(404).json({ message: "User not found" });
 
     res.json(user);
@@ -83,7 +85,9 @@ const updateUser = async (req, res) => {
       req.params.id,
       { name, email },
       { new: true, runValidators: true }
-    ).select("-password");
+    )
+      .select("-password")
+      .populate("grades");
 
     if (!updatedUser)
       return res.status(404).json({ message: "User not found" });

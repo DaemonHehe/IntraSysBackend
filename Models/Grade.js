@@ -13,8 +13,8 @@ const GradeSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ["A", "B", "C", "D", "F", "Pass", "Fail"],
-    required: [true, "Status is required"],
+    enum: ["A", "B", "C", "D", "E", "F", "Incomplete", "Pending"],
+    default: "Pending",
   },
   remarks: {
     type: String,

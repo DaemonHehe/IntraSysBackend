@@ -5,10 +5,12 @@ const {
   getCourseById,
   updateCourse,
   deleteCourse,
+  searchCourses,
 } = require("../Controllers/CourseController");
 
 const router = express.Router();
 
+router.get("/search", searchCourses);
 router.post("/create", registerCourse);
 router.get("/", getAllCourses);
 router.get("/:id", getCourseById);
