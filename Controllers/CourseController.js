@@ -2,19 +2,9 @@ const Course = require("../Models/Course");
 const Lecturer = require("../Models/Lecturer");
 const mongoose = require("mongoose");
 
-const errorHandler = (err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({
-    success: false,
-    error: "Internal Server Error",
-    message: err.message,
-  });
-};
-
-// 📌  Create a New Course
+// 📌 Create a New Course
 const registerCourse = async (req, res) => {
   try {
-    // First validate content type
     if (!req.is("application/json")) {
       return res.status(415).json({
         error: "Unsupported Media Type",
@@ -22,14 +12,40 @@ const registerCourse = async (req, res) => {
       });
     }
 
-    const { name, description, lecturer, category, duration } = req.body;
+    const { name, description, lecturer, category, duration, content } =
+      req.body;
 
-    // Validate input
-    if (!name || !description || !lecturer || !category || !duration) {
+    // Validate required fields
+    if (
+      !name ||
+      !description ||
+      !lecturer ||
+      !category ||
+      !duration ||
+      !content
+    ) {
       return res.status(400).json({
         error: "Validation Error",
-        details: "All fields are required",
+        message: "All fields including content are required",
       });
+    }
+
+    // Validate content array
+    if (!Array.isArray(content) || content.length === 0) {
+      return res.status(400).json({
+        error: "Validation Error",
+        message: "At least one content item is required",
+      });
+    }
+
+    // Validate each content item
+    for (const item of content) {
+      if (!item.title || !item.url) {
+        return res.status(400).json({
+          error: "Validation Error",
+          message: "Each content item must include a title and url",
+        });
+      }
     }
 
     // Lecturer lookup
@@ -44,12 +60,14 @@ const registerCourse = async (req, res) => {
       });
     }
 
+    // Create and save course
     const course = new Course({
       name,
       description,
       lecturer: lecturerDoc._id,
       category,
       duration,
+      content,
     });
 
     await course.save();
@@ -72,7 +90,7 @@ const registerCourse = async (req, res) => {
   }
 };
 
-// 📌  Get All Courses
+// 📌 Get All Courses
 const getAllCourses = async (req, res) => {
   try {
     const courses = await Course.find().populate("lecturer", "name email");
@@ -82,7 +100,7 @@ const getAllCourses = async (req, res) => {
   }
 };
 
-// 📌  Get a Single Course by ID
+// 📌 Get a Single Course by ID
 const getCourseById = async (req, res) => {
   try {
     const course = await Course.findById(req.params.id).populate(
@@ -97,17 +115,18 @@ const getCourseById = async (req, res) => {
   }
 };
 
-// 📌  Update a Course
+// 📌 Update a Course
 const updateCourse = async (req, res) => {
   try {
-    let { name, description, lecturer, category, duration } = req.body;
+    let { name, description, lecturer, category, duration, content } = req.body;
 
-    // Check if another course already has this name
+    // Optional: Validate unique course name
     const existingCourse = await Course.findOne({ name });
     if (existingCourse && existingCourse._id.toString() !== req.params.id) {
       return res.status(400).json({ error: "Course name must be unique" });
     }
 
+    // Resolve lecturer if necessary
     if (lecturer && !mongoose.Types.ObjectId.isValid(lecturer)) {
       const lecturerDoc = await Lecturer.findOne({ name: lecturer });
       if (!lecturerDoc) {
@@ -118,7 +137,7 @@ const updateCourse = async (req, res) => {
 
     const updatedCourse = await Course.findByIdAndUpdate(
       req.params.id,
-      { name, description, lecturer, category, duration },
+      { name, description, lecturer, category, duration, content },
       { new: true, runValidators: true }
     );
 
@@ -133,7 +152,7 @@ const updateCourse = async (req, res) => {
   }
 };
 
-// 📌  Delete a Course
+// 📌 Delete a Course
 const deleteCourse = async (req, res) => {
   try {
     const deletedCourse = await Course.findByIdAndDelete(req.params.id);
@@ -148,23 +167,20 @@ const deleteCourse = async (req, res) => {
 
 // 📌 Search Courses
 const searchCourses = async (req, res) => {
-  console.log(req.query);
   try {
-    const { query } = req.query; // Get search query from the request
+    const { query } = req.query;
 
     if (!query) {
       return res.status(400).json({ error: "Search query is required" });
     }
 
-    // Create a regular expression to perform a case-insensitive search
-    const regexQuery = new RegExp(query, "i"); // 'i' makes it case-insensitive
+    const regexQuery = new RegExp(query, "i");
 
     const courses = await Course.find({
       $or: [
         { name: { $regex: regexQuery } },
         { description: { $regex: regexQuery } },
         { category: { $regex: regexQuery } },
-        { "lecturer.name": { $regex: regexQuery } }, // Search in lecturer's name
       ],
     }).populate("lecturer", "name email");
 
