@@ -1,91 +1,130 @@
 const Course = require("../Models/Course");
 const Lecturer = require("../Models/Lecturer");
 const mongoose = require("mongoose");
+const { validationResult } = require("express-validator");
+
+// Helper function to validate content array
+const validateContent = (content) => {
+  if (!Array.isArray(content)) return false;
+  return content.every(
+    (item) =>
+      item &&
+      typeof item.title === "string" &&
+      typeof item.url === "string" &&
+      item.title.trim() &&
+      item.url.trim()
+  );
+};
 
 // 📌 Create a New Course
 const registerCourse = async (req, res) => {
   try {
+    // Validate request content type
     if (!req.is("application/json")) {
       return res.status(415).json({
+        success: false,
         error: "Unsupported Media Type",
         message: "Content-Type must be application/json",
+      });
+    }
+
+    // Validate input data
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        error: "Validation Error",
+        details: errors.array(),
       });
     }
 
     const { name, description, lecturer, category, duration, content } =
       req.body;
 
-    // Validate required fields
-    if (
-      !name ||
-      !description ||
-      !lecturer ||
-      !category ||
-      !duration ||
-      !content
-    ) {
+    // Validate content structure
+    if (!validateContent(content)) {
       return res.status(400).json({
-        error: "Validation Error",
-        message: "All fields including content are required",
+        success: false,
+        error: "Invalid Content",
+        message: "Content must be an array of objects with title and url",
       });
     }
 
-    // Validate content array
-    if (!Array.isArray(content) || content.length === 0) {
-      return res.status(400).json({
-        error: "Validation Error",
-        message: "At least one content item is required",
-      });
-    }
+    // Find lecturer (by ID, name, or email)
+    let lecturerDoc;
+    try {
+      lecturerDoc = await Lecturer.findOne({
+        $or: [{ _id: lecturer }, { name: lecturer }, { email: lecturer }],
+      }).select("_id name email");
 
-    // Validate each content item
-    for (const item of content) {
-      if (!item.title || !item.url) {
-        return res.status(400).json({
-          error: "Validation Error",
-          message: "Each content item must include a title and url",
+      if (!lecturerDoc) {
+        return res.status(404).json({
+          success: false,
+          error: "Lecturer Not Found",
+          message: `No lecturer matching: ${lecturer}`,
         });
       }
-    }
-
-    // Lecturer lookup
-    const lecturerDoc = await Lecturer.findOne({
-      $or: [{ _id: lecturer }, { name: lecturer }, { email: lecturer }],
-    });
-
-    if (!lecturerDoc) {
-      return res.status(404).json({
-        error: "Not Found",
-        message: "Lecturer not found",
+    } catch (err) {
+      console.error("Lecturer lookup error:", err);
+      return res.status(500).json({
+        success: false,
+        error: "Server Error",
+        message: "Failed to lookup lecturer",
       });
     }
 
-    // Create and save course
+    // Create and validate course
     const course = new Course({
-      name,
-      description,
+      name: name.trim(),
+      description: description.trim(),
       lecturer: lecturerDoc._id,
-      category,
-      duration,
-      content,
+      category: category.trim(),
+      duration: Number(duration),
+      content: content.map((item) => ({
+        title: item.title.trim(),
+        url: item.url.trim(),
+      })),
     });
 
+    // Manual validation
+    const validationError = course.validateSync();
+    if (validationError) {
+      const errors = {};
+      Object.keys(validationError.errors).forEach((key) => {
+        errors[key] = validationError.errors[key].message;
+      });
+      return res.status(400).json({
+        success: false,
+        error: "Validation Failed",
+        details: errors,
+      });
+    }
+
+    // Save course
     await course.save();
 
+    // Populate and return response
     const populatedCourse = await Course.findById(course._id).populate(
       "lecturer",
       "name email"
     );
 
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
+      message: "Course created successfully",
       data: populatedCourse,
     });
   } catch (err) {
-    console.error("Course creation error:", err);
-    res.status(500).json({
-      error: "Internal Server Error",
+    console.error("Course creation error:", {
       message: err.message,
+      stack: err.stack,
+      body: req.body,
+    });
+
+    return res.status(500).json({
+      success: false,
+      error: "Internal Server Error",
+      message: process.env.NODE_ENV === "development" ? err.message : null,
     });
   }
 };
@@ -93,75 +132,182 @@ const registerCourse = async (req, res) => {
 // 📌 Get All Courses
 const getAllCourses = async (req, res) => {
   try {
-    const courses = await Course.find().populate("lecturer", "name email");
-    res.status(200).json(courses);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
+    const courses = await Course.find()
+      .populate("lecturer", "name email")
+      .lean();
+
+    return res.status(200).json({
+      success: true,
+      count: courses.length,
+      data: courses,
+    });
+  } catch (err) {
+    console.error("Get courses error:", err);
+    return res.status(500).json({
+      success: false,
+      error: "Server Error",
+      message: "Failed to fetch courses",
+    });
   }
 };
 
-// 📌 Get a Single Course by ID
+// 📌 Get Single Course
 const getCourseById = async (req, res) => {
   try {
-    const course = await Course.findById(req.params.id).populate(
-      "lecturer",
-      "name email"
-    );
-    if (!course) return res.status(404).json({ error: "Course not found" });
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid ID",
+        message: "Provided course ID is not valid",
+      });
+    }
 
-    res.status(200).json(course);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
+    const course = await Course.findById(req.params.id)
+      .populate("lecturer", "name email")
+      .populate("enrolledStudents", "name email")
+      .lean();
+
+    if (!course) {
+      return res.status(404).json({
+        success: false,
+        error: "Not Found",
+        message: "Course not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: course,
+    });
+  } catch (err) {
+    console.error("Get course error:", err);
+    return res.status(500).json({
+      success: false,
+      error: "Server Error",
+      message: "Failed to fetch course",
+    });
   }
 };
 
-// 📌 Update a Course
+// 📌 Update Course
 const updateCourse = async (req, res) => {
   try {
-    let { name, description, lecturer, category, duration, content } = req.body;
-
-    // Optional: Validate unique course name
-    const existingCourse = await Course.findOne({ name });
-    if (existingCourse && existingCourse._id.toString() !== req.params.id) {
-      return res.status(400).json({ error: "Course name must be unique" });
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid ID",
+        message: "Provided course ID is not valid",
+      });
     }
 
-    // Resolve lecturer if necessary
-    if (lecturer && !mongoose.Types.ObjectId.isValid(lecturer)) {
-      const lecturerDoc = await Lecturer.findOne({ name: lecturer });
+    const { name, description, lecturer, category, duration, content } =
+      req.body;
+
+    // Validate content if provided
+    if (content && !validateContent(content)) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid Content",
+        message: "Content must be an array of objects with title and url",
+      });
+    }
+
+    // Check if course exists
+    const existingCourse = await Course.findById(req.params.id);
+    if (!existingCourse) {
+      return res.status(404).json({
+        success: false,
+        error: "Not Found",
+        message: "Course not found",
+      });
+    }
+
+    // Resolve lecturer if provided
+    let lecturerId = existingCourse.lecturer;
+    if (lecturer) {
+      const lecturerDoc = await Lecturer.findOne({
+        $or: [{ _id: lecturer }, { name: lecturer }, { email: lecturer }],
+      });
+
       if (!lecturerDoc) {
-        return res.status(404).json({ error: "Lecturer not found by name" });
+        return res.status(404).json({
+          success: false,
+          error: "Lecturer Not Found",
+          message: `No lecturer matching: ${lecturer}`,
+        });
       }
-      lecturer = lecturerDoc._id;
+      lecturerId = lecturerDoc._id;
     }
+
+    // Prepare update data
+    const updateData = {
+      name: name ? name.trim() : existingCourse.name,
+      description: description
+        ? description.trim()
+        : existingCourse.description,
+      lecturer: lecturerId,
+      category: category ? category.trim() : existingCourse.category,
+      duration: duration ? Number(duration) : existingCourse.duration,
+      content: content
+        ? content.map((item) => ({
+            title: item.title.trim(),
+            url: item.url.trim(),
+          }))
+        : existingCourse.content,
+    };
 
     const updatedCourse = await Course.findByIdAndUpdate(
       req.params.id,
-      { name, description, lecturer, category, duration, content },
+      updateData,
       { new: true, runValidators: true }
-    );
+    ).populate("lecturer", "name email");
 
-    if (!updatedCourse)
-      return res.status(404).json({ error: "Course not found" });
-
-    res
-      .status(200)
-      .json({ message: "Course updated successfully", course: updatedCourse });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
+    return res.status(200).json({
+      success: true,
+      message: "Course updated successfully",
+      data: updatedCourse,
+    });
+  } catch (err) {
+    console.error("Update course error:", err);
+    return res.status(500).json({
+      success: false,
+      error: "Internal Server Error",
+      message: process.env.NODE_ENV === "development" ? err.message : null,
+    });
   }
 };
 
-// 📌 Delete a Course
+// 📌 Delete Course
 const deleteCourse = async (req, res) => {
   try {
-    const deletedCourse = await Course.findByIdAndDelete(req.params.id);
-    if (!deletedCourse)
-      return res.status(404).json({ error: "Course not found" });
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid ID",
+        message: "Provided course ID is not valid",
+      });
+    }
 
-    res.status(200).json({ message: "Course deleted successfully" });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
+    const deletedCourse = await Course.findByIdAndDelete(req.params.id);
+    if (!deletedCourse) {
+      return res.status(404).json({
+        success: false,
+        error: "Not Found",
+        message: "Course not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Course deleted successfully",
+    });
+  } catch (err) {
+    console.error("Delete course error:", err);
+    return res.status(500).json({
+      success: false,
+      error: "Internal Server Error",
+      message: "Failed to delete course",
+    });
   }
 };
 
@@ -170,27 +316,38 @@ const searchCourses = async (req, res) => {
   try {
     const { query } = req.query;
 
-    if (!query) {
-      return res.status(400).json({ error: "Search query is required" });
+    if (!query || typeof query !== "string") {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid Query",
+        message: "Search query is required and must be a string",
+      });
     }
 
     const regexQuery = new RegExp(query, "i");
-
     const courses = await Course.find({
       $or: [
         { name: { $regex: regexQuery } },
         { description: { $regex: regexQuery } },
         { category: { $regex: regexQuery } },
+        { "lecturer.name": { $regex: regexQuery } },
       ],
-    }).populate("lecturer", "name email");
+    })
+      .populate("lecturer", "name email")
+      .lean();
 
-    if (courses.length === 0) {
-      return res.status(404).json({ message: "No courses found" });
-    }
-
-    res.status(200).json(courses);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
+    return res.status(200).json({
+      success: true,
+      count: courses.length,
+      data: courses,
+    });
+  } catch (err) {
+    console.error("Search courses error:", err);
+    return res.status(500).json({
+      success: false,
+      error: "Server Error",
+      message: "Failed to search courses",
+    });
   }
 };
 
