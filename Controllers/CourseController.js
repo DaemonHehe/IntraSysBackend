@@ -2,54 +2,86 @@ const Course = require("../Models/Course");
 const Lecturer = require("../Models/Lecturer");
 const mongoose = require("mongoose");
 
+const errorHandler = (err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({
+    success: false,
+    error: "Internal Server Error",
+    message: err.message,
+  });
+};
+
 // 📌  Create a New Course
-const registerCourse = async (req, res) => {
+const registerCourse = async (req, res, next) => {
   try {
     const { name, description, lecturer, category, duration } = req.body;
 
-    // Validate input
-    if (!name || !description || !lecturer || !category || !duration) {
-      return res.status(400).json({ error: "All fields are required" });
+    // Enhanced validation
+    const errors = [];
+    if (!name) errors.push("Course name is required");
+    if (!description) errors.push("Description is required");
+    if (!lecturer) errors.push("Lecturer is required");
+    if (!category) errors.push("Category is required");
+    if (!duration) errors.push("Duration is required");
+
+    if (errors.length > 0) {
+      return res.status(400).json({
+        success: false,
+        errors,
+      });
     }
 
-    // Check if lecturer exists (by ID or name)
+    // Lecturer lookup - more robust checking
     let lecturerDoc;
-    if (mongoose.Types.ObjectId.isValid(lecturer)) {
-      lecturerDoc = await Lecturer.findById(lecturer);
-    } else {
-      lecturerDoc = await Lecturer.findOne({ name: lecturer });
+    try {
+      if (mongoose.Types.ObjectId.isValid(lecturer)) {
+        lecturerDoc = await Lecturer.findById(lecturer);
+      } else {
+        lecturerDoc = await Lecturer.findOne({
+          $or: [{ name: lecturer }, { email: lecturer }],
+        });
+      }
+
+      if (!lecturerDoc) {
+        return res.status(404).json({
+          success: false,
+          error: "Lecturer not found",
+          details: `No lecturer matching: ${lecturer}`,
+        });
+      }
+    } catch (lecturerError) {
+      console.error("Lecturer lookup failed:", lecturerError);
+      return res.status(500).json({
+        success: false,
+        error: "Lecturer lookup failed",
+        details: lecturerError.message,
+      });
     }
 
-    if (!lecturerDoc) {
-      return res.status(404).json({ error: "Lecturer not found" });
-    }
-
+    // Course creation
     const newCourse = new Course({
       name,
       description,
-      lecturer: lecturerDoc._id, // Store only the ID
+      lecturer: lecturerDoc._id,
       category,
-      duration,
+      duration: Number(duration),
     });
 
     await newCourse.save();
 
-    // Populate lecturer data in response
-    const populatedCourse = await Course.findById(newCourse._id).populate(
-      "lecturer",
-      "name email"
-    );
+    // Populate response
+    const populatedCourse = await Course.findById(newCourse._id)
+      .populate("lecturer", "name email")
+      .lean();
 
     res.status(201).json({
+      success: true,
       message: "Course created successfully",
       course: populatedCourse,
     });
   } catch (error) {
-    console.error("Error creating course:", error);
-    res.status(500).json({
-      error: "Internal server error",
-      details: error.message,
-    });
+    console.error("Course creation failed:", error);
+    next(error); // Pass to error handler middleware
   }
 };
 

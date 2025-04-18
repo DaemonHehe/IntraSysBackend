@@ -10,7 +10,13 @@ const GraddeRoutes = require("./Routes/GradeRoute");
 
 const app = express();
 app.use(express.json());
-app.use(cors());
+app.use(
+  cors({
+    origin: ["http://localhost:3000", "https://your-frontend-domain.com"],
+    methods: ["GET", "POST", "PUT", "DELETE"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
+);
 app.use(morgan("dev"));
 
 app.use("/users", userRoutes);
