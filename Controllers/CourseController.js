@@ -51,11 +51,20 @@ const registerCourse = async (req, res) => {
     }
 
     // Find lecturer (by ID, name, or email)
+    // Find lecturer (by ID, name, or email)
     let lecturerDoc;
     try {
-      lecturerDoc = await Lecturer.findOne({
-        $or: [{ _id: lecturer }, { name: lecturer }, { email: lecturer }],
-      }).select("_id name email");
+      const lecturerQuery = [];
+
+      if (mongoose.Types.ObjectId.isValid(lecturer)) {
+        lecturerQuery.push({ _id: lecturer });
+      }
+
+      lecturerQuery.push({ name: lecturer }, { email: lecturer });
+
+      lecturerDoc = await Lecturer.findOne({ $or: lecturerQuery }).select(
+        "_id name email"
+      );
 
       if (!lecturerDoc) {
         return res.status(404).json({
