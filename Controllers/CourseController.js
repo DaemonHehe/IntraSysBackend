@@ -7,25 +7,49 @@ const registerCourse = async (req, res) => {
   try {
     const { name, description, lecturer, category, duration } = req.body;
 
-    const lecturerDoc = await Lecturer.findOne({ name: lecturer });
+    // Validate input
+    if (!name || !description || !lecturer || !category || !duration) {
+      return res.status(400).json({ error: "All fields are required" });
+    }
+
+    // Check if lecturer exists (by ID or name)
+    let lecturerDoc;
+    if (mongoose.Types.ObjectId.isValid(lecturer)) {
+      lecturerDoc = await Lecturer.findById(lecturer);
+    } else {
+      lecturerDoc = await Lecturer.findOne({ name: lecturer });
+    }
+
     if (!lecturerDoc) {
-      return res.status(404).json({ error: "Lecturer not found by name" });
+      return res.status(404).json({ error: "Lecturer not found" });
     }
 
     const newCourse = new Course({
       name,
       description,
-      lecturer: lecturerDoc._id,
+      lecturer: lecturerDoc._id, // Store only the ID
       category,
       duration,
     });
 
     await newCourse.save();
-    res
-      .status(201)
-      .json({ message: "Course created successfully", course: newCourse });
+
+    // Populate lecturer data in response
+    const populatedCourse = await Course.findById(newCourse._id).populate(
+      "lecturer",
+      "name email"
+    );
+
+    res.status(201).json({
+      message: "Course created successfully",
+      course: populatedCourse,
+    });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error("Error creating course:", error);
+    res.status(500).json({
+      error: "Internal server error",
+      details: error.message,
+    });
   }
 };
 

@@ -69,11 +69,11 @@ const getGradeById = async (req, res) => {
 // 📌 4️⃣ Update a Grade
 const updateGrade = async (req, res) => {
   try {
-    const { grade, remarks } = req.body;
+    const { status, remarks } = req.body;
 
     const updatedGrade = await Grade.findByIdAndUpdate(
       req.params.id,
-      { grade, remarks },
+      { status, remarks },
       { new: true, runValidators: true }
     );
 
