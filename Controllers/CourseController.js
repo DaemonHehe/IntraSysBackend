@@ -136,17 +136,45 @@ const getAllCourses = async (req, res) => {
       .populate("lecturer", "name email")
       .lean();
 
+    // Validate the data before sending
+    if (!Array.isArray(courses)) {
+      console.error("Courses data is not an array:", courses);
+      throw new Error("Data format error");
+    }
+
+    // Ensure each course has required fields
+    const validatedCourses = courses.map((course) => {
+      return {
+        _id: course._id?.toString() || "",
+        name: course.name || "Untitled Course",
+        description: course.description || "",
+        category: course.category || "",
+        duration: course.duration || 0,
+        enrollmentLimit: course.enrollmentLimit || 0,
+        lecturer: course.lecturer || null,
+        // Add other required fields with defaults
+      };
+    });
+
     return res.status(200).json({
       success: true,
-      count: courses.length,
-      data: courses,
+      count: validatedCourses.length,
+      data: validatedCourses,
     });
   } catch (err) {
-    console.error("Get courses error:", err);
+    console.error("Get courses error:", {
+      message: err.message,
+      stack: err.stack,
+      timestamp: new Date(),
+    });
+
     return res.status(500).json({
       success: false,
       error: "Server Error",
-      message: "Failed to fetch courses",
+      message:
+        process.env.NODE_ENV === "development"
+          ? err.message
+          : "Failed to fetch courses",
     });
   }
 };
