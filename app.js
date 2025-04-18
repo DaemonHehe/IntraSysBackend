@@ -10,13 +10,6 @@ const GraddeRoutes = require("./Routes/GradeRoute");
 
 const app = express();
 app.use(express.json());
-app.use(
-  cors({
-    origin: ["http://localhost:3000", "https://your-frontend-domain.com"],
-    methods: ["GET", "POST", "PUT", "DELETE"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-  })
-);
 app.use(morgan("dev"));
 
 app.use("/users", userRoutes);
@@ -38,3 +31,18 @@ app.get("/", (req, res) => {
 // Start Server
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({
+    error: "Internal Server Error",
+    message: err.message,
+  });
+});
+
+app.use(
+  cors({
+    origin: true, // Allow all origins (tighten for production)
+    credentials: true,
+  })
+);
